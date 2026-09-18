@@ -1,0 +1,20 @@
+{
+  "name": "fieldnote",
+  "version": "0.4.2",
+  "private": true,
+  "description": "Field notes for people who work outdoors.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "react": "^19.0.0"
+  }
+}
