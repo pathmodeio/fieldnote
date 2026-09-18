@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { resetStore, saveInvoice, getSubscription } from '../src/db/store.js';
+import { resetStore, saveInvoice, saveSubscription, getSubscription } from '../src/db/store.js';
 import { createSubscription } from '../src/billing/subscription.js';
 import { hasAccess, revokeAccess } from '../src/billing/access.js';
 import { refundInvoice } from '../src/billing/refunds.js';
 import { runRenewals } from '../src/billing/renewals.js';
+import { cancelPlan, resumePlan } from '../src/billing/cancellation.js';
 
 const NOW = Date.UTC(2026, 0, 15);
 const DAY = 24 * 60 * 60 * 1000;
@@ -59,5 +60,94 @@ describe('renewals', () => {
         const canceled = { ...sub, status: 'canceled' as const };
 
         expect(runRenewals([canceled], sub.currentPeriodEnd + 1)).toEqual([]);
+    });
+});
+
+describe('self-serve cancellation', () => {
+    it('keeps access to the end of the period already paid for', () => {
+        const sub = subscription();
+        const canceled = cancelPlan('sub_1');
+
+        expect(canceled.cancelAtPeriodEnd).toBe(true);
+        expect(hasAccess(canceled, NOW + DAY)).toBe(true);
+        expect(hasAccess(canceled, sub.currentPeriodEnd - 1)).toBe(true);
+    });
+
+    it('ends access once that period runs out, even before the worker runs', () => {
+        const sub = subscription();
+        const canceled = cancelPlan('sub_1');
+
+        expect(hasAccess(canceled, sub.currentPeriodEnd + 1)).toBe(false);
+    });
+
+    it('does not renew, and closes the subscription when the period ends', () => {
+        const sub = subscription();
+        cancelPlan('sub_1');
+        const due = getSubscription('sub_1')!;
+
+        expect(runRenewals([due], sub.currentPeriodEnd + 1)).toEqual([]);
+        expect(getSubscription('sub_1')?.status).toBe('canceled');
+        expect(getSubscription('sub_1')?.currentPeriodEnd).toBe(sub.currentPeriodEnd);
+    });
+
+    it('does not touch a cancelled subscription that is still inside its period', () => {
+        const sub = subscription();
+        cancelPlan('sub_1');
+        const due = getSubscription('sub_1')!;
+
+        expect(runRenewals([due], sub.currentPeriodEnd - 1)).toEqual([]);
+        expect(getSubscription('sub_1')?.status).toBe('active');
+    });
+
+    it('charges nothing more: a closed subscription is skipped by later runs', () => {
+        const sub = subscription();
+        cancelPlan('sub_1');
+        runRenewals([getSubscription('sub_1')!], sub.currentPeriodEnd + 1);
+
+        expect(runRenewals([getSubscription('sub_1')!], sub.currentPeriodEnd + 40 * DAY)).toEqual([]);
+        expect(hasAccess(getSubscription('sub_1')!, sub.currentPeriodEnd + 40 * DAY)).toBe(false);
+    });
+
+    it('ends access straight away for a subscription that is past due', () => {
+        const sub = subscription();
+        saveSubscription({ ...sub, status: 'past_due', currentPeriodEnd: NOW - DAY });
+
+        expect(hasAccess(cancelPlan('sub_1'), NOW)).toBe(false);
+    });
+
+    it('leaves a refunded subscription as it is', () => {
+        subscription();
+        revokeAccess('sub_1', NOW);
+        const canceled = cancelPlan('sub_1');
+
+        expect(canceled.cancelAtPeriodEnd).toBe(false);
+        expect(canceled.accessEndedAt).toBe(NOW);
+    });
+});
+
+describe('resuming a cancelled plan', () => {
+    it('puts the subscription back on renewal', () => {
+        const sub = subscription();
+        cancelPlan('sub_1');
+        const resumed = resumePlan('sub_1', NOW + DAY);
+
+        expect(resumed.cancelAtPeriodEnd).toBe(false);
+        expect(resumed.accessEndedAt).toBeNull();
+        expect(runRenewals([resumed], sub.currentPeriodEnd + 1)).toEqual(['sub_1']);
+    });
+
+    it('refuses once the period has run out', () => {
+        const sub = subscription();
+        cancelPlan('sub_1');
+
+        expect(() => resumePlan('sub_1', sub.currentPeriodEnd + 1)).toThrow(/access has ended/i);
+    });
+
+    it('refuses once the worker has closed the subscription', () => {
+        const sub = subscription();
+        cancelPlan('sub_1');
+        runRenewals([getSubscription('sub_1')!], sub.currentPeriodEnd + 1);
+
+        expect(() => resumePlan('sub_1', sub.currentPeriodEnd + 1)).toThrow(/access has ended/i);
     });
 });

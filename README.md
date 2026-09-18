@@ -23,11 +23,19 @@ npm run typecheck
 ## Billing, in short
 
 A subscription has a `currentPeriodEnd`: the moment the customer has paid through. The nightly
-worker in `src/billing/renewals.ts` renews anything whose period has run out and skips anything
-canceled. `revokeAccess` in `src/billing/access.ts` ends access at once and exists for the refund
-flow.
+worker in `src/billing/renewals.ts` renews anything whose period has run out, skips anything
+already over, and closes anything the customer has cancelled.
 
-Plan changes and cancellations are handled by support by hand. See `docs/FN-412.md`.
+Access ends in two quite different ways, and they should not be mixed up:
+
+- `revokeAccess` in `src/billing/access.ts` ends access **at once**. It belongs to the refund flow:
+  the money went back, so the access it paid for goes with it.
+- `cancelPlan` in `src/billing/cancellation.ts` ends access **at the end of the paid period**. This
+  is self-serve cancellation from Settings → Billing. Nothing is refunded, so the customer keeps
+  what they have paid for and simply is not renewed. `resumePlan` calls it off, up until the period
+  runs out.
+
+Plan changes are still handled by support by hand.
 
 ---
 

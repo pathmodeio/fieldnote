@@ -12,6 +12,7 @@ export function createSubscription(
         ...input,
         status: 'active',
         currentPeriodEnd: now + PERIOD_DAYS * DAY_MS,
+        cancelAtPeriodEnd: false,
         accessEndedAt: null,
         createdAt: now,
     });
@@ -21,7 +22,8 @@ export function createSubscription(
  * Moves a subscription into its next paid period.
  *
  * Called by the nightly renewal worker for every subscription whose period has ended. The worker
- * skips anything that is already canceled; everything else renews.
+ * skips anything already over and closes anything the customer has cancelled; everything else
+ * renews.
  *
  * @see runRenewals in ./renewals.ts
  */
