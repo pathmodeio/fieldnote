@@ -79,9 +79,14 @@ It exits `1`: the six checks pass, and the open choices block.
 ## What this run does not show
 
 - **A human decision.** Nobody answered the four choices. With no workspace connected, an answer
-  would be a reply in chat, and Pathmode's keyless tools do not record it: `intent_save` accepts
-  new open choices, never answers. Recording a decision, and authorizing the exact revision to be
-  built, needs a connected workspace, where a reviewer answers from a review link.
+  would have been a reply in chat, and the keyless tools of this run (server 1.34.0) did not record
+  it: `intent_save` accepts new open choices, never answers. Authorizing the exact revision to be
+  built needs a connected workspace, where a reviewer answers from a review link.
+
+  *Since `@pathmode/mcp-server` 1.35.0 (2026-09-26):* keyless mode records each explicit answer with
+  `answer_product_choice`, quoting the person's words for that choice and marking it answered locally
+  (unverified). That is a faithful record of the conversation, not verified approval. This file is
+  unchanged: it is what the agent wrote on 1.34.0.
 - **That the recommendations are right.** They are the agent's assumptions until a person decides.
 - **What other runs do.** This is one run. Another may word things differently or find different
   choices; an earlier run on this fixture recorded three of these four.
